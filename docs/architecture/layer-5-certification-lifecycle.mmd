@@ -1,0 +1,219 @@
+flowchart TB
+  DISCOVER["Discover / Install MCP"] --> INTAKE["Create Registry Candidate"]
+  INTAKE --> META["Capture Manifest + Tool Schemas + Auth Model"]
+  META --> STATIC["Static Contract Validation"]
+
+  subgraph STATICG["Static certification gates"]
+    S1["Schema parse / canonicalization"]
+    S2["Capability classification"]
+    S3["Resource-domain classification"]
+    S4["Declared auth + scopes"]
+    S5["Mutation / side-effect labeling"]
+    S6["Idempotency declaration"]
+    S7["Verification strategy present"]
+    S8["Fallback / prohibition rules"]
+  end
+
+  STATIC --> S1
+  STATIC --> S2
+  STATIC --> S3
+  STATIC --> S4
+  STATIC --> S5
+  STATIC --> S6
+  STATIC --> S7
+  STATIC --> S8
+
+  S1 --> STATICPASS{"All static gates pass?"}
+  S2 --> STATICPASS
+  S3 --> STATICPASS
+  S4 --> STATICPASS
+  S5 --> STATICPASS
+  S6 --> STATICPASS
+  S7 --> STATICPASS
+  S8 --> STATICPASS
+
+  STATICPASS -->|No| QUARANTINE["QUARANTINED"]
+  STATICPASS -->|Yes| SANDBOX["Sandbox Certification"]
+
+  subgraph RUNTIME["Runtime certification matrix"]
+    R1["server/discover or equivalent"]
+    R2["tools/list / schema parity"]
+    R3["Read-only smoke"]
+    R4["Scope boundary test"]
+    R5["Auth revocation test"]
+    R6["Timeout / retry behavior"]
+    R7["Error taxonomy validation"]
+    R8["Rate-limit behavior"]
+  end
+
+  SANDBOX --> R1
+  SANDBOX --> R2
+  SANDBOX --> R3
+  SANDBOX --> R4
+  SANDBOX --> R5
+  SANDBOX --> R6
+  SANDBOX --> R7
+  SANDBOX --> R8
+
+  R1 --> RUNTIMEPASS{"Runtime matrix green?"}
+  R2 --> RUNTIMEPASS
+  R3 --> RUNTIMEPASS
+  R4 --> RUNTIMEPASS
+  R5 --> RUNTIMEPASS
+  R6 --> RUNTIMEPASS
+  R7 --> RUNTIMEPASS
+  R8 --> RUNTIMEPASS
+
+  RUNTIMEPASS -->|No| QUARANTINE
+  RUNTIMEPASS -->|Yes| WRITECHECK{"Has write / external side effects?"}
+
+  WRITECHECK -->|No| READCERT["READ_CERTIFIED"]
+  WRITECHECK -->|Yes| MUTATION["Isolated Mutation Certification"]
+
+  subgraph MUTATIONG["Mutation proof gates"]
+    M1["Snapshot provider pre-state"]
+    M2["Execute exactly one bounded mutation"]
+    M3["Capture provider result + request ID"]
+    M4["Independent read-back"]
+    M5["Prove exactly one intended change"]
+    M6["Replay / idempotency test"]
+    M7["Conflict / stale-version test"]
+    M8["Out-of-scope denial test"]
+    M9["Rollback / compensating action test"]
+    M10["Credential revoke → subsequent failure"]
+  end
+
+  MUTATION --> M1 --> M2 --> M3 --> M4 --> M5 --> M6 --> M7 --> M8 --> M9 --> M10
+  M10 --> MUTPASS{"All mutation gates pass?"}
+  MUTPASS -->|No| QUARANTINE
+  MUTPASS -->|Yes| WRITECERT["WRITE_CERTIFIED"]
+
+  READCERT --> SCORE["Certification Score"]
+  WRITECERT --> SCORE
+
+  subgraph SCOREG["Trust dimensions"]
+    T1["Contract correctness"]
+    T2["Least privilege"]
+    T3["Read-back strength"]
+    T4["Idempotency / replay safety"]
+    T5["Error determinism"]
+    T6["Availability / latency"]
+    T7["Revocation enforcement"]
+    T8["Evidence completeness"]
+  end
+
+  SCORE --> T1
+  SCORE --> T2
+  SCORE --> T3
+  SCORE --> T4
+  SCORE --> T5
+  SCORE --> T6
+  SCORE --> T7
+  SCORE --> T8
+
+  T1 --> PROMOTE{"Promotion threshold met?"}
+  T2 --> PROMOTE
+  T3 --> PROMOTE
+  T4 --> PROMOTE
+  T5 --> PROMOTE
+  T6 --> PROMOTE
+  T7 --> PROMOTE
+  T8 --> PROMOTE
+
+  PROMOTE -->|No| CANDIDATE["CANDIDATE / LIMITED"]
+  PROMOTE -->|Yes| PROD["PRODUCTION_CERTIFIED"]
+
+  PROD --> ROUTER["Eligible for Layer 4 Router"]
+  READCERT --> ROUTER
+  CANDIDATE -. "explicit override only" .-> ROUTER
+  QUARANTINE -. "never selectable" .-> ROUTER
+
+  subgraph EVIDENCE["Certification evidence bundle"]
+    E1["MCPCertificationReceipt/v1"]
+    E2["connector_id + version"]
+    E3["schema_hash"]
+    E4["principal + scopes"]
+    E5["test_run_id"]
+    E6["case-level outcomes"]
+    E7["provider state hashes"]
+    E8["credential lifecycle proof"]
+    E9["certified_at / expires_at"]
+  end
+
+  READCERT --> E1
+  WRITECERT --> E1
+  PROD --> E1
+  E1 --> E2
+  E1 --> E3
+  E1 --> E4
+  E1 --> E5
+  E1 --> E6
+  E1 --> E7
+  E1 --> E8
+  E1 --> E9
+
+  subgraph DRIFT["Continuous drift detection"]
+    D1["Manifest / schema changed"]
+    D2["Tool added / removed / renamed"]
+    D3["Scope set changed"]
+    D4["Auth behavior changed"]
+    D5["Verification behavior changed"]
+    D6["Reliability threshold breached"]
+    D7["Provider policy / version changed"]
+  end
+
+  PROD --> MONITOR["Continuous Monitor"]
+  MONITOR --> D1
+  MONITOR --> D2
+  MONITOR --> D3
+  MONITOR --> D4
+  MONITOR --> D5
+  MONITOR --> D6
+  MONITOR --> D7
+
+  D1 --> DRIFTED{"Material drift?"}
+  D2 --> DRIFTED
+  D3 --> DRIFTED
+  D4 --> DRIFTED
+  D5 --> DRIFTED
+  D6 --> DRIFTED
+  D7 --> DRIFTED
+
+  DRIFTED -->|No| PROD
+  DRIFTED -->|Yes| DEMOTE["AUTO-DEMOTE → RECERTIFICATION_REQUIRED"]
+  DEMOTE --> SANDBOX
+
+  subgraph STATES["Canonical lifecycle"]
+    ST1["DISCOVERED"]
+    ST2["CANDIDATE"]
+    ST3["READ_CERTIFIED"]
+    ST4["WRITE_CERTIFIED"]
+    ST5["PRODUCTION_CERTIFIED"]
+    ST6["RECERTIFICATION_REQUIRED"]
+    ST7["QUARANTINED"]
+    ST8["REVOKED"]
+  end
+
+  DISCOVER -.-> ST1
+  INTAKE -.-> ST2
+  READCERT -.-> ST3
+  WRITECERT -.-> ST4
+  PROD -.-> ST5
+  DEMOTE -.-> ST6
+  QUARANTINE -.-> ST7
+
+  REVOKE["Operator / security revocation"] --> REVOKED["REVOKED"]
+  REVOKED -.-> ST8
+  REVOKED -. "hard exclusion" .-> ROUTER
+
+  classDef pass fill:#ecfccb,stroke:#65a30d,color:#1a2e05;
+  classDef warn fill:#fff7ed,stroke:#ea580c,color:#431407;
+  classDef fail fill:#fee2e2,stroke:#dc2626,color:#450a0a;
+  classDef control fill:#1f2937,stroke:#111827,color:#fff;
+  classDef evidence fill:#e0f2fe,stroke:#0284c7,color:#082f49;
+
+  class READCERT,WRITECERT,PROD pass;
+  class CANDIDATE,DEMOTE warn;
+  class QUARANTINE,REVOKED fail;
+  class STATIC,SANDBOX,MUTATION,SCORE,MONITOR,ROUTER control;
+  class E1,E2,E3,E4,E5,E6,E7,E8,E9 evidence;
