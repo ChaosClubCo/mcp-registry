@@ -1,0 +1,196 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://chaosclub.co/schemas/mcp-certification-receipt-v1.schema.json",
+  "title": "MCPCertificationReceipt/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "connector_id",
+    "connector_version",
+    "schema_hash",
+    "principal",
+    "scopes",
+    "test_run_id",
+    "case_outcomes",
+    "credential_lifecycle",
+    "certification_state",
+    "certified_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "MCPCertificationReceipt/v1"
+    },
+    "connector_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "connector_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "schema_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-fA-F0-9]{64}$"
+    },
+    "principal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "subject_ref"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["user", "service", "workspace", "delegated"]
+        },
+        "subject_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "scopes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "test_run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "case_outcomes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["case_id", "gate", "status"],
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "gate": {
+            "type": "string",
+            "enum": ["static", "runtime", "mutation", "drift"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PASS", "FAIL", "SKIP"]
+          },
+          "evidence_ref": {
+            "type": "string",
+            "minLength": 1
+          },
+          "error_class": {
+            "type": ["string", "null"]
+          }
+        }
+      }
+    },
+    "provider_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pre_state_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-fA-F0-9]{64}$"
+        },
+        "post_state_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-fA-F0-9]{64}$"
+        },
+        "target_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "credential_lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revocation_tested", "revocation_enforced"],
+      "properties": {
+        "credential_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fingerprint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revocation_tested": {
+          "type": "boolean"
+        },
+        "revocation_enforced": {
+          "type": "boolean"
+        },
+        "revoked_at": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        }
+      }
+    },
+    "certification_state": {
+      "type": "string",
+      "enum": [
+        "DISCOVERED",
+        "CANDIDATE",
+        "READ_CERTIFIED",
+        "WRITE_CERTIFIED",
+        "PRODUCTION_CERTIFIED",
+        "RECERTIFICATION_REQUIRED",
+        "QUARANTINED",
+        "REVOKED"
+      ]
+    },
+    "score": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "contract_correctness": {"type": "number", "minimum": 0, "maximum": 1},
+        "least_privilege": {"type": "number", "minimum": 0, "maximum": 1},
+        "readback_strength": {"type": "number", "minimum": 0, "maximum": 1},
+        "idempotency_safety": {"type": "number", "minimum": 0, "maximum": 1},
+        "error_determinism": {"type": "number", "minimum": 0, "maximum": 1},
+        "availability": {"type": "number", "minimum": 0, "maximum": 1},
+        "revocation_enforcement": {"type": "number", "minimum": 0, "maximum": 1},
+        "evidence_completeness": {"type": "number", "minimum": 0, "maximum": 1}
+      }
+    },
+    "certified_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "non_expiring_policy_ref": {
+      "type": ["string", "null"]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "certification_state": {
+            "enum": ["WRITE_CERTIFIED", "PRODUCTION_CERTIFIED"]
+          }
+        },
+        "required": ["certification_state"]
+      },
+      "then": {
+        "required": ["provider_state"]
+      }
+    },
+    {
+      "anyOf": [
+        {"required": ["expires_at"]},
+        {"required": ["non_expiring_policy_ref"]}
+      ]
+    }
+  ]
+}
