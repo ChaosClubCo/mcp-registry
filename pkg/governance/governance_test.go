@@ -99,12 +99,7 @@ func TestEligibilityFailsClosedForCertificationScopeAndWriteLevel(t *testing.T) 
 	now := time.Date(2026, 8, 29, 20, 0, 0, 0, time.UTC)
 	receipt := validReceipt(now)
 	record := validRecord(receipt)
-	req := Request{
-		Capability:     CapabilityRead,
-		ResourceDomain: "repository",
-		Risk:           RiskR1,
-		GrantedScopes:  []string{"repo:read"},
-	}
+	req := authorizedRequest(CapabilityRead, RiskR1, []string{"repo:read"})
 
 	for _, state := range []CertificationState{StateRevoked, StateQuarantined, StateRecertificationRequired} {
 		record.CertificationState = state
@@ -123,7 +118,7 @@ func TestEligibilityFailsClosedForCertificationScopeAndWriteLevel(t *testing.T) 
 	}
 
 	record = validRecord(receipt)
-	req.GrantedScopes = []string{"repo:metadata"}
+	req.Authorization.GrantedScopes = []string{"repo:metadata"}
 	if err := Eligible(record, req, now); err == nil {
 		t.Fatal("missing required provider scope must fail closed")
 	}
@@ -145,12 +140,7 @@ func TestRouterIsDeterministicAndPrefersEligibleNativeAuthority(t *testing.T) {
 	bridge.LatencyMillis = 5
 	bridge.CertificationReceipt.ConnectorID = bridge.ConnectorID
 
-	req := Request{
-		Capability:     CapabilityRead,
-		ResourceDomain: "repository",
-		Risk:           RiskR1,
-		GrantedScopes:  []string{"repo:read"},
-	}
+	req := authorizedRequest(CapabilityRead, RiskR1, []string{"repo:read"})
 
 	selected, err := Select([]RegistryRecord{bridge, native}, req, now)
 	if err != nil {
@@ -250,6 +240,19 @@ func validReceipt(now time.Time) CertificationReceipt {
 		CertificationState: StateProductionCertified,
 		CertifiedAt:        now.Add(-time.Hour),
 		ExpiresAt:          ptrTime(now.Add(24 * time.Hour)),
+	}
+}
+
+func authorizedRequest(capability Capability, risk RiskClass, scopes []string) Request {
+	return Request{
+		Capability:     capability,
+		ResourceDomain: "repository",
+		Risk:           risk,
+		Authorization: AuthorizationContext{
+			Principal:              Principal{Type: "user", SubjectRef: "user:test"},
+			GrantedScopes:          scopes,
+			AllowedResourceDomains: []string{"repository"},
+		},
 	}
 }
 
