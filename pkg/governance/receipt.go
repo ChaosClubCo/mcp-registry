@@ -64,6 +64,8 @@ func (r CertificationReceipt) Validate(now time.Time) error {
 	if len(r.CaseOutcomes) == 0 {
 		return fmt.Errorf("case outcomes are required")
 	}
+
+	passedGates := map[string]bool{}
 	for _, c := range r.CaseOutcomes {
 		if c.CaseID == "" {
 			return fmt.Errorf("case id is required")
@@ -74,7 +76,9 @@ func (r CertificationReceipt) Validate(now time.Time) error {
 			return fmt.Errorf("invalid gate %q", c.Gate)
 		}
 		switch c.Status {
-		case "PASS", "SKIP":
+		case "PASS":
+			passedGates[c.Gate] = true
+		case "SKIP":
 		case "FAIL":
 			if isCertifiedState(r.CertificationState) {
 				return fmt.Errorf("certified receipt contains failed case %s", c.CaseID)
@@ -83,6 +87,13 @@ func (r CertificationReceipt) Validate(now time.Time) error {
 			return fmt.Errorf("invalid status %q", c.Status)
 		}
 	}
+	if isCertifiedState(r.CertificationState) && !passedGates["runtime"] {
+		return fmt.Errorf("certified receipt requires passing runtime evidence")
+	}
+	if (r.CertificationState == StateWriteCertified || r.CertificationState == StateProductionCertified) && !passedGates["mutation"] {
+		return fmt.Errorf("mutation certification requires passing mutation evidence")
+	}
+
 	if r.CertifiedAt.IsZero() || r.CertifiedAt.After(now) {
 		return fmt.Errorf("invalid certified_at")
 	}
@@ -104,8 +115,8 @@ func (r CertificationReceipt) Validate(now time.Time) error {
 		}
 	}
 	if r.CertificationState == StateWriteCertified || r.CertificationState == StateProductionCertified {
-		if r.ProviderState == nil || !validSHA256Ref(r.ProviderState.PostStateHash) {
-			return fmt.Errorf("verified provider post-state is required")
+		if r.ProviderState == nil || !validSHA256Ref(r.ProviderState.PreStateHash) || !validSHA256Ref(r.ProviderState.PostStateHash) {
+			return fmt.Errorf("verified provider pre- and post-state are required")
 		}
 	}
 	return nil
@@ -153,6 +164,10 @@ func validPrincipal(p Principal) bool {
 	default:
 		return false
 	}
+}
+
+func samePrincipal(a, b Principal) bool {
+	return a.Type == b.Type && a.SubjectRef == b.SubjectRef
 }
 
 func isCertifiedState(s CertificationState) bool {
