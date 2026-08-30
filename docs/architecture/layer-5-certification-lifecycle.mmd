@@ -88,8 +88,7 @@ flowchart TB
   MUTPASS -->|No| QUARANTINE
   MUTPASS -->|Yes| WRITECERT["WRITE_CERTIFIED"]
 
-  READCERT --> SCORE["Certification Score"]
-  WRITECERT --> SCORE
+  WRITECERT --> SCORE["Production Promotion Score"]
 
   subgraph SCOREG["Trust dimensions"]
     T1["Contract correctness"]
@@ -120,13 +119,15 @@ flowchart TB
   T7 --> PROMOTE
   T8 --> PROMOTE
 
-  PROMOTE -->|No| CANDIDATE["CANDIDATE / LIMITED"]
+  PROMOTE -->|No| WRITECERT
   PROMOTE -->|Yes| PROD["PRODUCTION_CERTIFIED"]
 
-  PROD --> ROUTER["Eligible for Layer 4 Router"]
-  READCERT --> ROUTER
-  CANDIDATE -. "explicit override only" .-> ROUTER
-  QUARANTINE -. "never selectable" .-> ROUTER
+  READCERT --> ROUTER["Eligible for Layer 4 Router"]
+  WRITECERT --> ROUTER
+  PROD --> ROUTER
+  CANDIDATE["CANDIDATE / LIMITED"] -. "not routable" .-> EXCLUDED["Excluded from routing"]
+  QUARANTINE -. "not routable" .-> EXCLUDED
+  REVOKED["REVOKED"] -. "hard exclusion" .-> EXCLUDED
 
   subgraph EVIDENCE["Certification evidence bundle"]
     E1["MCPCertificationReceipt/v1"]
@@ -162,7 +163,9 @@ flowchart TB
     D7["Provider policy / version changed"]
   end
 
-  PROD --> MONITOR["Continuous Monitor"]
+  READCERT --> MONITOR["Continuous Monitor"]
+  WRITECERT --> MONITOR
+  PROD --> MONITOR
   MONITOR --> D1
   MONITOR --> D2
   MONITOR --> D3
@@ -179,7 +182,8 @@ flowchart TB
   D6 --> DRIFTED
   D7 --> DRIFTED
 
-  DRIFTED -->|No| PROD
+  DRIFTED -->|No| RETAIN["Retain current certification"]
+  RETAIN --> ROUTER
   DRIFTED -->|Yes| DEMOTE["AUTO-DEMOTE → RECERTIFICATION_REQUIRED"]
   DEMOTE --> SANDBOX
 
@@ -201,10 +205,9 @@ flowchart TB
   PROD -.-> ST5
   DEMOTE -.-> ST6
   QUARANTINE -.-> ST7
-
-  REVOKE["Operator / security revocation"] --> REVOKED["REVOKED"]
   REVOKED -.-> ST8
-  REVOKED -. "hard exclusion" .-> ROUTER
+
+  REVOKE["Operator / security revocation"] --> REVOKED
 
   classDef pass fill:#ecfccb,stroke:#65a30d,color:#1a2e05;
   classDef warn fill:#fff7ed,stroke:#ea580c,color:#431407;
@@ -214,6 +217,6 @@ flowchart TB
 
   class READCERT,WRITECERT,PROD pass;
   class CANDIDATE,DEMOTE warn;
-  class QUARANTINE,REVOKED fail;
+  class QUARANTINE,REVOKED,EXCLUDED fail;
   class STATIC,SANDBOX,MUTATION,SCORE,MONITOR,ROUTER control;
   class E1,E2,E3,E4,E5,E6,E7,E8,E9 evidence;
