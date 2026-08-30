@@ -45,7 +45,7 @@ func DetectDrift(record RegistryRecord, observation Observation) DriftResult {
 	if strings.TrimSpace(observation.AuthModel) != "" && !strings.EqualFold(strings.TrimSpace(record.AuthModel), strings.TrimSpace(observation.AuthModel)) {
 		reasons = append(reasons, "auth_model")
 	}
-	if len(observation.ToolNames) > 0 && !sameStringSet(record.ToolNames, observation.ToolNames) {
+	if observation.ToolNames != nil && !sameStringSet(record.ToolNames, observation.ToolNames) {
 		reasons = append(reasons, "tool_names")
 	}
 
