@@ -39,7 +39,7 @@ func DetectDrift(record RegistryRecord, observation Observation) DriftResult {
 	if observation.SchemaHash != "" && observation.SchemaHash != record.SchemaHash {
 		reasons = append(reasons, "schema_hash")
 	}
-	if !sameStringSet(record.RequiredScopes, observation.RequiredScopes) {
+	if observation.RequiredScopes != nil && !sameStringSet(record.RequiredScopes, observation.RequiredScopes) {
 		reasons = append(reasons, "required_scopes")
 	}
 	if strings.TrimSpace(observation.AuthModel) != "" && !strings.EqualFold(strings.TrimSpace(record.AuthModel), strings.TrimSpace(observation.AuthModel)) {
@@ -53,8 +53,11 @@ func DetectDrift(record RegistryRecord, observation Observation) DriftResult {
 		return DriftResult{Material: false, NextState: record.CertificationState}
 	}
 
-	next := StateRecertificationRequired
-	if record.CertificationState == StateQuarantined {
+	next := record.CertificationState
+	switch record.CertificationState {
+	case StateReadCertified, StateWriteCertified, StateProductionCertified:
+		next = StateRecertificationRequired
+	case StateQuarantined:
 		next = StateQuarantined
 	}
 	return DriftResult{Material: true, Reasons: reasons, NextState: next}
