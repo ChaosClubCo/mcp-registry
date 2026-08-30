@@ -53,12 +53,7 @@ func TestRouterTieBreaksSameConnectorIDByVersionThenSchemaHash(t *testing.T) {
 	b.CertificationReceipt.ConnectorID = b.ConnectorID
 	b.CertificationReceipt.ConnectorVersion = b.Version
 
-	req := Request{
-		Capability:     CapabilityRead,
-		ResourceDomain: "repository",
-		Risk:           RiskR1,
-		GrantedScopes:  []string{"repo:read"},
-	}
+	req := authorizedRequest(CapabilityRead, RiskR1, []string{"repo:read"})
 
 	first, err := Select([]RegistryRecord{b, a}, req, now)
 	if err != nil {
