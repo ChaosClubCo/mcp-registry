@@ -35,12 +35,7 @@ func TestSideEffectCapabilitiesRequireWriteCertification(t *testing.T) {
 	record.Capabilities = append(record.Capabilities, CapabilityDeploy, CapabilityCommunicate, CapabilityExecute)
 
 	for _, capability := range []Capability{CapabilityDeploy, CapabilityCommunicate, CapabilityExecute} {
-		req := Request{
-			Capability:     capability,
-			ResourceDomain: "repository",
-			Risk:           RiskR3,
-			GrantedScopes:  []string{"repo:read"},
-		}
+		req := authorizedRequest(capability, RiskR3, []string{"repo:read"})
 		if err := Eligible(record, req, now); err == nil {
 			t.Fatalf("READ_CERTIFIED must not authorize side-effect capability %s", capability)
 		}
@@ -74,13 +69,8 @@ func TestPreferredConnectorCannotBypassEligibility(t *testing.T) {
 	fallback.ConnectorID = "eligible-fallback"
 	fallback.CertificationReceipt.ConnectorID = fallback.ConnectorID
 
-	req := Request{
-		Capability:            CapabilityRead,
-		ResourceDomain:        "repository",
-		Risk:                  RiskR1,
-		GrantedScopes:         []string{"repo:read"},
-		PreferredConnectorID: "preferred-but-revoked",
-	}
+	req := authorizedRequest(CapabilityRead, RiskR1, []string{"repo:read"})
+	req.PreferredConnectorID = "preferred-but-revoked"
 
 	selected, err := Select([]RegistryRecord{preferred, fallback}, req, now)
 	if err != nil {
