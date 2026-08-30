@@ -46,8 +46,17 @@ func Eligible(record RegistryRecord, req Request, now time.Time) error {
 	if req.Risk > record.RiskCeiling {
 		return fmt.Errorf("risk %d exceeds ceiling %d", req.Risk, record.RiskCeiling)
 	}
+	if !validPrincipal(req.Authorization.Principal) {
+		return fmt.Errorf("authenticated principal is required")
+	}
+	if !samePrincipal(req.Authorization.Principal, record.CertificationReceipt.Principal) {
+		return fmt.Errorf("authorization principal does not match certified principal")
+	}
+	if !containsStringFold(req.Authorization.AllowedResourceDomains, req.ResourceDomain) {
+		return fmt.Errorf("principal is not authorized for resource domain %q", req.ResourceDomain)
+	}
 	for _, scope := range record.RequiredScopes {
-		if !containsString(req.GrantedScopes, scope) {
+		if !containsString(req.Authorization.GrantedScopes, scope) {
 			return fmt.Errorf("required scope %q not granted", scope)
 		}
 	}
@@ -82,10 +91,10 @@ func Select(records []RegistryRecord, req Request, now time.Time) (RegistryRecor
 
 func requiresWriteCertification(c Capability) bool {
 	switch c {
-	case CapabilityWrite, CapabilityExecute, CapabilityAutomate, CapabilityDeploy, CapabilityCommunicate, CapabilitySchedule, CapabilitySell, CapabilityStoreKnowledge:
-		return true
-	default:
+	case CapabilityDiscover, CapabilitySearch, CapabilityRead, CapabilityObserve, CapabilityAnalyze:
 		return false
+	default:
+		return true
 	}
 }
 
@@ -106,9 +115,6 @@ func betterCandidate(a, b RegistryRecord, req Request) bool {
 	}
 	if a.ReliabilityBasisPoints != b.ReliabilityBasisPoints {
 		return a.ReliabilityBasisPoints > b.ReliabilityBasisPoints
-	}
-	if len(a.RequiredScopes) != len(b.RequiredScopes) {
-		return len(a.RequiredScopes) < len(b.RequiredScopes)
 	}
 	if a.LatencyMillis != b.LatencyMillis {
 		return a.LatencyMillis < b.LatencyMillis
