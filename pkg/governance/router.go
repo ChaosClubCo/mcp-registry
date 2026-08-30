@@ -79,7 +79,7 @@ func Select(records []RegistryRecord, req Request, now time.Time) (RegistryRecor
 
 func requiresWriteCertification(c Capability) bool {
 	switch c {
-	case CapabilityWrite, CapabilityExecute, CapabilityAutomate, CapabilityDeploy, CapabilityCommunicate, CapabilitySchedule, CapabilitySell:
+	case CapabilityWrite, CapabilityExecute, CapabilityAutomate, CapabilityDeploy, CapabilityCommunicate, CapabilitySchedule, CapabilitySell, CapabilityStoreKnowledge:
 		return true
 	default:
 		return false
