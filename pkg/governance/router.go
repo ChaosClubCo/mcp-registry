@@ -68,6 +68,9 @@ func Select(records []RegistryRecord, req Request, now time.Time) (RegistryRecor
 		eligible = append(eligible, record)
 	}
 	if len(eligible) == 0 {
+		if len(rejected) == 0 {
+			return RegistryRecord{}, errors.New("no eligible connector")
+		}
 		return RegistryRecord{}, fmt.Errorf("no eligible connector: %w", errors.Join(rejected...))
 	}
 
