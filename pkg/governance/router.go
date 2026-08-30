@@ -116,7 +116,13 @@ func betterCandidate(a, b RegistryRecord, req Request) bool {
 	if a.CostUnits != b.CostUnits {
 		return a.CostUnits < b.CostUnits
 	}
-	return a.ConnectorID < b.ConnectorID
+	if a.ConnectorID != b.ConnectorID {
+		return a.ConnectorID < b.ConnectorID
+	}
+	if a.Version != b.Version {
+		return a.Version < b.Version
+	}
+	return a.SchemaHash < b.SchemaHash
 }
 
 func rankCertification(s CertificationState) int {
