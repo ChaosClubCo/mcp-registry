@@ -44,7 +44,6 @@ func CanTransition(from, to CertificationState) bool {
 		},
 		StateReadCertified: {
 			StateWriteCertified:          true,
-			StateProductionCertified:     true,
 			StateRecertificationRequired: true,
 			StateQuarantined:             true,
 		},
