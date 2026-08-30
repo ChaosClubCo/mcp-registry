@@ -42,6 +42,22 @@ func (r CertificationReceipt) Validate(now time.Time) error {
 	if !validPrincipal(r.Principal) {
 		return fmt.Errorf("invalid principal")
 	}
+	if !validCertificationState(r.CertificationState) {
+		return fmt.Errorf("invalid certification state %q", r.CertificationState)
+	}
+
+	seenScopes := make(map[string]struct{}, len(r.Scopes))
+	for _, scope := range r.Scopes {
+		canonical := strings.TrimSpace(scope)
+		if canonical == "" || canonical != scope {
+			return fmt.Errorf("invalid scope %q", scope)
+		}
+		if _, exists := seenScopes[canonical]; exists {
+			return fmt.Errorf("duplicate scope %q", canonical)
+		}
+		seenScopes[canonical] = struct{}{}
+	}
+
 	if strings.TrimSpace(r.TestRunID) == "" {
 		return fmt.Errorf("test run id is required")
 	}
@@ -81,12 +97,15 @@ func (r CertificationReceipt) Validate(now time.Time) error {
 			return fmt.Errorf("certification expired")
 		}
 	}
+
+	if isCertifiedState(r.CertificationState) {
+		if !r.CredentialLifecycle.RevocationTested || !r.CredentialLifecycle.RevocationEnforced {
+			return fmt.Errorf("credential revocation proof is required")
+		}
+	}
 	if r.CertificationState == StateWriteCertified || r.CertificationState == StateProductionCertified {
 		if r.ProviderState == nil || !validSHA256Ref(r.ProviderState.PostStateHash) {
 			return fmt.Errorf("verified provider post-state is required")
-		}
-		if !r.CredentialLifecycle.RevocationTested || !r.CredentialLifecycle.RevocationEnforced {
-			return fmt.Errorf("credential revocation proof is required")
 		}
 	}
 	return nil
@@ -138,4 +157,13 @@ func validPrincipal(p Principal) bool {
 
 func isCertifiedState(s CertificationState) bool {
 	return s == StateReadCertified || s == StateWriteCertified || s == StateProductionCertified
+}
+
+func validCertificationState(s CertificationState) bool {
+	switch s {
+	case StateDiscovered, StateCandidate, StateReadCertified, StateWriteCertified, StateProductionCertified, StateRecertificationRequired, StateQuarantined, StateRevoked:
+		return true
+	default:
+		return false
+	}
 }
