@@ -68,47 +68,47 @@ const (
 )
 
 type Principal struct {
-	Type       string
-	SubjectRef string
+	Type       string `json:"type"`
+	SubjectRef string `json:"subject_ref"`
 }
 
 type CaseOutcome struct {
-	CaseID      string
-	Gate        string
-	Status      string
-	EvidenceRef string
-	ErrorClass  string
+	CaseID      string `json:"case_id"`
+	Gate        string `json:"gate"`
+	Status      string `json:"status"`
+	EvidenceRef string `json:"evidence_ref,omitempty"`
+	ErrorClass  string `json:"error_class,omitempty"`
 }
 
 type ProviderState struct {
-	PreStateHash  string
-	PostStateHash string
-	TargetRef     string
+	PreStateHash  string `json:"pre_state_hash,omitempty"`
+	PostStateHash string `json:"post_state_hash,omitempty"`
+	TargetRef     string `json:"target_ref,omitempty"`
 }
 
 type CredentialLifecycle struct {
-	CredentialRef      string
-	Fingerprint        string
-	RevocationTested   bool
-	RevocationEnforced bool
-	RevokedAt          *time.Time
+	CredentialRef      string     `json:"credential_ref,omitempty"`
+	Fingerprint        string     `json:"fingerprint,omitempty"`
+	RevocationTested   bool       `json:"revocation_tested"`
+	RevocationEnforced bool       `json:"revocation_enforced"`
+	RevokedAt          *time.Time `json:"revoked_at,omitempty"`
 }
 
 type CertificationReceipt struct {
-	SchemaVersion          string
-	ConnectorID            string
-	ConnectorVersion       string
-	SchemaHash             string
-	Principal              Principal
-	Scopes                 []string
-	TestRunID              string
-	CaseOutcomes           []CaseOutcome
-	ProviderState          *ProviderState
-	CredentialLifecycle    CredentialLifecycle
-	CertificationState     CertificationState
-	CertifiedAt            time.Time
-	ExpiresAt              *time.Time
-	NonExpiringPolicyRef   *string
+	SchemaVersion        string              `json:"schema_version"`
+	ConnectorID          string              `json:"connector_id"`
+	ConnectorVersion     string              `json:"connector_version"`
+	SchemaHash           string              `json:"schema_hash"`
+	Principal            Principal           `json:"principal"`
+	Scopes               []string            `json:"scopes"`
+	TestRunID            string              `json:"test_run_id"`
+	CaseOutcomes         []CaseOutcome        `json:"case_outcomes"`
+	ProviderState        *ProviderState       `json:"provider_state,omitempty"`
+	CredentialLifecycle CredentialLifecycle `json:"credential_lifecycle"`
+	CertificationState   CertificationState  `json:"certification_state"`
+	CertifiedAt          time.Time           `json:"certified_at"`
+	ExpiresAt            *time.Time          `json:"expires_at,omitempty"`
+	NonExpiringPolicyRef *string             `json:"non_expiring_policy_ref,omitempty"`
 }
 
 type RegistryRecord struct {
@@ -130,11 +130,18 @@ type RegistryRecord struct {
 	ToolNames              []string
 }
 
+type AuthorizationContext struct {
+	Principal              Principal
+	GrantedScopes          []string
+	AllowedResourceDomains []string
+}
+
 type Request struct {
 	Capability            Capability
 	ResourceDomain        string
 	Risk                  RiskClass
-	GrantedScopes         []string
+	GrantedScopes         []string // Deprecated: use Authorization.GrantedScopes.
+	Authorization         AuthorizationContext
 	PreferredConnectorID string
 }
 
