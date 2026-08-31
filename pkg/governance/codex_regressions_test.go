@@ -35,13 +35,17 @@ func TestCertifiedReceiptRequiresPassingApplicableGates(t *testing.T) {
 	readReceipt := validReceipt(now)
 	readReceipt.CertificationState = StateReadCertified
 	readReceipt.ProviderState = nil
-	readReceipt.CaseOutcomes = []CaseOutcome{{CaseID: "runtime.read", Gate: "runtime", Status: "SKIP"}}
+	readReceipt.CaseOutcomes = []CaseOutcome{
+		{CaseID: "static.contract", Gate: "static", Status: "PASS"},
+		{CaseID: "runtime.read", Gate: "runtime", Status: "SKIP"},
+	}
 	if err := readReceipt.Validate(now); err == nil {
 		t.Fatal("READ_CERTIFIED must require at least one passing runtime case")
 	}
 
 	writeReceipt := validReceipt(now)
 	writeReceipt.CaseOutcomes = []CaseOutcome{
+		{CaseID: "static.contract", Gate: "static", Status: "PASS"},
 		{CaseID: "runtime.read", Gate: "runtime", Status: "PASS"},
 		{CaseID: "mutation.write", Gate: "mutation", Status: "SKIP"},
 	}
@@ -68,7 +72,7 @@ func TestCertificationReceiptUsesCanonicalJSONFieldNames(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(raw)
-	for _, key := range []string{"schema_version", "connector_id", "connector_version", "schema_hash", "subject_ref", "test_run_id", "case_outcomes", "credential_lifecycle", "certification_state", "certified_at"} {
+	for _, key := range []string{"schema_version", "connector_id", "connector_version", "schema_hash", "subject_ref", "scopes", "required_scopes", "test_run_id", "case_outcomes", "credential_lifecycle", "certification_state", "certified_at"} {
 		if !strings.Contains(text, `"`+key+`"`) {
 			t.Fatalf("canonical receipt JSON missing key %q: %s", key, text)
 		}
@@ -92,6 +96,7 @@ func TestEligibilityRequiresPrincipalAndTargetAuthorization(t *testing.T) {
 	base := Request{
 		Capability:     CapabilityRead,
 		ResourceDomain: "repository",
+		ResourceRef:    "repo:test",
 		Risk:           RiskR1,
 	}
 
@@ -104,6 +109,7 @@ func TestEligibilityRequiresPrincipalAndTargetAuthorization(t *testing.T) {
 		Principal:              record.CertificationReceipt.Principal,
 		GrantedScopes:          []string{"repo:read"},
 		AllowedResourceDomains: []string{"repository"},
+		AllowedResourceRefs:    []string{"repo:test"},
 	}
 	if err := Eligible(record, good, now); err != nil {
 		t.Fatalf("valid authorization rejected: %v", err)
@@ -141,6 +147,7 @@ func TestScopeCountIsNotUsedAsLeastPrivilegeRanking(t *testing.T) {
 	narrowReceipt := validReceipt(now)
 	narrowReceipt.ConnectorID = "a-two-narrow"
 	narrowReceipt.Scopes = []string{"repo:read", "repo:metadata", "repo:write"}
+	narrowReceipt.RequiredScopes = []string{"repo:read", "repo:metadata"}
 	narrow := validRecord(narrowReceipt)
 	narrow.ConnectorID = narrowReceipt.ConnectorID
 	narrow.RequiredScopes = []string{"repo:read", "repo:metadata"}
@@ -148,6 +155,7 @@ func TestScopeCountIsNotUsedAsLeastPrivilegeRanking(t *testing.T) {
 	adminReceipt := validReceipt(now)
 	adminReceipt.ConnectorID = "z-one-admin"
 	adminReceipt.Scopes = []string{"admin:*", "repo:read", "repo:metadata"}
+	adminReceipt.RequiredScopes = []string{"admin:*"}
 	admin := validRecord(adminReceipt)
 	admin.ConnectorID = adminReceipt.ConnectorID
 	admin.RequiredScopes = []string{"admin:*"}
@@ -155,11 +163,13 @@ func TestScopeCountIsNotUsedAsLeastPrivilegeRanking(t *testing.T) {
 	req := Request{
 		Capability:     CapabilityRead,
 		ResourceDomain: "repository",
+		ResourceRef:    "repo:test",
 		Risk:           RiskR1,
 		Authorization: AuthorizationContext{
 			Principal:              narrowReceipt.Principal,
 			GrantedScopes:          []string{"repo:read", "repo:metadata", "admin:*"},
 			AllowedResourceDomains: []string{"repository"},
+			AllowedResourceRefs:    []string{"repo:test"},
 		},
 	}
 
