@@ -23,6 +23,7 @@ THE SOFTWARE.
 package governance
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -63,6 +64,31 @@ func TestMutationReceiptRejectsUnchangedProviderState(t *testing.T) {
 	receipt.ProviderState.PostStateHash = receipt.ProviderState.PreStateHash
 	if err := receipt.Validate(now); err == nil {
 		t.Fatal("mutation certification must prove an actual state transition")
+	}
+}
+
+func TestMutationReceiptRequiresCanonicalTargetRef(t *testing.T) {
+	now := time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC)
+	receipt := validReceipt(now)
+	receipt.ProviderState.TargetRef = ""
+	if err := receipt.Validate(now); err == nil {
+		t.Fatal("mutation certification without a target reference must fail")
+	}
+
+	receipt = validReceipt(now)
+	receipt.ProviderState.TargetRef = " repo:test "
+	if err := receipt.Validate(now); err == nil {
+		t.Fatal("mutation target reference must already be canonical")
+	}
+}
+
+func TestMutationReceiptRejectsSameDigestWithDifferentHexCase(t *testing.T) {
+	now := time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC)
+	receipt := validReceipt(now)
+	receipt.ProviderState.PostStateHash = strings.ToUpper(receipt.ProviderState.PreStateHash)
+	receipt.ProviderState.PostStateHash = "sha256:" + strings.TrimPrefix(receipt.ProviderState.PostStateHash, "SHA256:")
+	if err := receipt.Validate(now); err == nil {
+		t.Fatal("same provider-state digest with different hex casing must not prove a mutation")
 	}
 }
 
