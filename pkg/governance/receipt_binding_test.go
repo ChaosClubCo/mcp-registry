@@ -48,12 +48,8 @@ func TestExpiredReceiptCannotRemainEligible(t *testing.T) {
 	receipt.ExpiresAt = &expired
 
 	record := validRecord(receipt)
-	if err := Eligible(record, Request{
-		Capability:     CapabilityRead,
-		ResourceDomain: "repository",
-		Risk:           RiskR1,
-		GrantedScopes:  []string{"repo:read"},
-	}, now); err == nil {
+	req := authorizedRequest(CapabilityRead, RiskR1, []string{"repo:read"})
+	if err := Eligible(record, req, now); err == nil {
 		t.Fatal("expired certification receipt must fail routing eligibility")
 	}
 }

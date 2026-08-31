@@ -101,6 +101,7 @@ type CertificationReceipt struct {
 	SchemaHash           string              `json:"schema_hash"`
 	Principal            Principal           `json:"principal"`
 	Scopes               []string            `json:"scopes"`
+	RequiredScopes       []string            `json:"required_scopes"`
 	TestRunID            string              `json:"test_run_id"`
 	CaseOutcomes         []CaseOutcome        `json:"case_outcomes"`
 	ProviderState        *ProviderState       `json:"provider_state,omitempty"`
@@ -112,33 +113,36 @@ type CertificationReceipt struct {
 }
 
 type RegistryRecord struct {
-	ConnectorID            string
-	Version                string
-	SchemaHash             string
-	Capabilities           []Capability
-	ResourceDomains        []string
-	RiskCeiling            RiskClass
-	RequiredScopes         []string
-	CertificationState     CertificationState
-	CertificationReceipt   CertificationReceipt
-	NativeAuthority        bool
-	VerificationStrength   int
-	ReliabilityBasisPoints int
-	LatencyMillis          int
-	CostUnits              int
-	AuthModel              string
-	ToolNames              []string
+	ConnectorID                    string
+	Version                        string
+	SchemaHash                     string
+	Capabilities                   []Capability
+	ResourceDomains                []string
+	RiskCeiling                    RiskClass
+	RequiredScopes                 []string
+	CertificationState             CertificationState
+	CertificationReceipt           CertificationReceipt
+	NativeAuthority                bool
+	VerificationStrength           int
+	ReliabilityBasisPoints         int
+	MinimumReliabilityBasisPoints  int
+	LatencyMillis                  int
+	CostUnits                      int
+	AuthModel                      string
+	ToolNames                      []string
 }
 
 type AuthorizationContext struct {
 	Principal              Principal
 	GrantedScopes          []string
 	AllowedResourceDomains []string
+	AllowedResourceRefs    []string
 }
 
 type Request struct {
 	Capability            Capability
 	ResourceDomain        string
+	ResourceRef           string
 	Risk                  RiskClass
 	GrantedScopes         []string // Deprecated: use Authorization.GrantedScopes.
 	Authorization         AuthorizationContext
@@ -146,11 +150,13 @@ type Request struct {
 }
 
 type Observation struct {
-	Version        string
-	SchemaHash     string
-	RequiredScopes []string
-	AuthModel      string
-	ToolNames      []string
+	Version                string
+	SchemaHash             string
+	RequiredScopes         []string
+	AuthModel              string
+	AuthModelObserved      bool
+	ToolNames              []string
+	ReliabilityBasisPoints *int
 }
 
 type DriftResult struct {

@@ -220,9 +220,11 @@ func validReceipt(now time.Time) CertificationReceipt {
 			Type:       "user",
 			SubjectRef: "user:test",
 		},
-		Scopes:    []string{"repo:read", "repo:write"},
-		TestRunID: "run-1",
+		Scopes:         []string{"repo:read", "repo:write"},
+		RequiredScopes: []string{"repo:read"},
+		TestRunID:      "run-1",
 		CaseOutcomes: []CaseOutcome{
+			{CaseID: "static.contract", Gate: "static", Status: "PASS"},
 			{CaseID: "runtime.read", Gate: "runtime", Status: "PASS"},
 			{CaseID: "mutation.write", Gate: "mutation", Status: "PASS"},
 		},
@@ -247,11 +249,13 @@ func authorizedRequest(capability Capability, risk RiskClass, scopes []string) R
 	return Request{
 		Capability:     capability,
 		ResourceDomain: "repository",
+		ResourceRef:    "repo:test",
 		Risk:           risk,
 		Authorization: AuthorizationContext{
 			Principal:              Principal{Type: "user", SubjectRef: "user:test"},
 			GrantedScopes:          scopes,
 			AllowedResourceDomains: []string{"repository"},
+			AllowedResourceRefs:    []string{"repo:test"},
 		},
 	}
 }

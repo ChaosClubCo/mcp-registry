@@ -38,13 +38,12 @@ func CanonicalSchemaHash(raw []byte) (string, error) {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.UseNumber()
 
-	var value any
-	if err := dec.Decode(&value); err != nil {
+	value, err := decodeCanonicalJSONValue(dec)
+	if err != nil {
 		return "", fmt.Errorf("decode schema: %w", err)
 	}
 
-	var extra any
-	if err := dec.Decode(&extra); err != io.EOF {
+	if _, err := dec.Token(); err != io.EOF {
 		if err == nil {
 			return "", fmt.Errorf("multiple JSON values")
 		}
@@ -58,6 +57,70 @@ func CanonicalSchemaHash(raw []byte) (string, error) {
 
 	hash := sha256.Sum256(canonical.Bytes())
 	return "sha256:" + hex.EncodeToString(hash[:]), nil
+}
+
+func decodeCanonicalJSONValue(dec *json.Decoder) (any, error) {
+	token, err := dec.Token()
+	if err != nil {
+		return nil, err
+	}
+
+	switch v := token.(type) {
+	case json.Delim:
+		switch v {
+		case '{':
+			object := make(map[string]any)
+			for dec.More() {
+				keyToken, err := dec.Token()
+				if err != nil {
+					return nil, err
+				}
+				key, ok := keyToken.(string)
+				if !ok {
+					return nil, fmt.Errorf("object key is not a string")
+				}
+				if _, exists := object[key]; exists {
+					return nil, fmt.Errorf("duplicate object key %q", key)
+				}
+				value, err := decodeCanonicalJSONValue(dec)
+				if err != nil {
+					return nil, err
+				}
+				object[key] = value
+			}
+			closing, err := dec.Token()
+			if err != nil {
+				return nil, err
+			}
+			if closing != json.Delim('}') {
+				return nil, fmt.Errorf("unexpected object terminator %v", closing)
+			}
+			return object, nil
+		case '[':
+			array := make([]any, 0)
+			for dec.More() {
+				value, err := decodeCanonicalJSONValue(dec)
+				if err != nil {
+					return nil, err
+				}
+				array = append(array, value)
+			}
+			closing, err := dec.Token()
+			if err != nil {
+				return nil, err
+			}
+			if closing != json.Delim(']') {
+				return nil, fmt.Errorf("unexpected array terminator %v", closing)
+			}
+			return array, nil
+		default:
+			return nil, fmt.Errorf("unexpected delimiter %q", v)
+		}
+	case nil, bool, string, json.Number:
+		return v, nil
+	default:
+		return nil, fmt.Errorf("unsupported JSON token type %T", token)
+	}
 }
 
 func writeCanonical(buf *bytes.Buffer, value any) error {
