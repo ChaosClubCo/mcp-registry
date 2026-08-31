@@ -55,6 +55,13 @@ func Eligible(record RegistryRecord, req Request, now time.Time) error {
 	if !containsStringFold(req.Authorization.AllowedResourceDomains, req.ResourceDomain) {
 		return fmt.Errorf("principal is not authorized for resource domain %q", req.ResourceDomain)
 	}
+	resourceRef := strings.TrimSpace(req.ResourceRef)
+	if resourceRef == "" || resourceRef != req.ResourceRef {
+		return fmt.Errorf("canonical resource reference is required")
+	}
+	if !containsString(req.Authorization.AllowedResourceRefs, resourceRef) {
+		return fmt.Errorf("principal is not authorized for resource %q", resourceRef)
+	}
 	for _, scope := range record.RequiredScopes {
 		if !containsString(req.Authorization.GrantedScopes, scope) {
 			return fmt.Errorf("required scope %q not granted", scope)
