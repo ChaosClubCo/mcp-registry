@@ -123,7 +123,11 @@ func (r CertificationReceipt) Validate(now time.Time) error {
 		if r.ProviderState == nil || !validSHA256Ref(r.ProviderState.PreStateHash) || !validSHA256Ref(r.ProviderState.PostStateHash) {
 			return fmt.Errorf("verified provider pre- and post-state are required")
 		}
-		if r.ProviderState.PreStateHash == r.ProviderState.PostStateHash {
+		targetRef := strings.TrimSpace(r.ProviderState.TargetRef)
+		if targetRef == "" || targetRef != r.ProviderState.TargetRef {
+			return fmt.Errorf("canonical provider target reference is required")
+		}
+		if strings.EqualFold(r.ProviderState.PreStateHash, r.ProviderState.PostStateHash) {
 			return fmt.Errorf("mutation certification requires a changed provider state")
 		}
 	}
