@@ -112,6 +112,7 @@ func TestCanonicalSchemaHashRejectsDuplicateObjectKeys(t *testing.T) {
 func TestReceiptBindingRequiresExactCertifiedRequiredScopes(t *testing.T) {
 	now := time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC)
 	receipt := validReceipt(now)
+	receipt.Scopes = append(receipt.Scopes, "admin:*")
 	receipt.RequiredScopes = []string{"repo:read", "admin:*"}
 	record := validRecord(receipt)
 	record.RequiredScopes = []string{"repo:read", "admin:*"}
