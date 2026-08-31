@@ -58,6 +58,28 @@ func TestCertifiedReceiptRequiresPassingStaticGate(t *testing.T) {
 	}
 }
 
+func TestReceiptRequiresExplicitScopeArrays(t *testing.T) {
+	now := time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC)
+
+	receipt := validReceipt(now)
+	receipt.Scopes = nil
+	if err := receipt.Validate(now); err == nil {
+		t.Fatal("nil tested credential scopes must fail because canonical receipt JSON requires an array")
+	}
+
+	receipt = validReceipt(now)
+	receipt.RequiredScopes = nil
+	if err := receipt.Validate(now); err == nil {
+		t.Fatal("nil required scopes must fail because canonical receipt JSON requires an array")
+	}
+
+	receipt = validReceipt(now)
+	receipt.RequiredScopes = []string{}
+	if err := receipt.Validate(now); err != nil {
+		t.Fatalf("an explicit empty required-scope set should remain valid: %v", err)
+	}
+}
+
 func TestMutationReceiptRejectsUnchangedProviderState(t *testing.T) {
 	now := time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC)
 	receipt := validReceipt(now)
