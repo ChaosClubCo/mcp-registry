@@ -42,11 +42,16 @@ func DetectDrift(record RegistryRecord, observation Observation) DriftResult {
 	if observation.RequiredScopes != nil && !sameStringSet(record.RequiredScopes, observation.RequiredScopes) {
 		reasons = append(reasons, "required_scopes")
 	}
-	if strings.TrimSpace(observation.AuthModel) != "" && !strings.EqualFold(strings.TrimSpace(record.AuthModel), strings.TrimSpace(observation.AuthModel)) {
-		reasons = append(reasons, "auth_model")
+	if observation.AuthModelObserved || strings.TrimSpace(observation.AuthModel) != "" {
+		if !strings.EqualFold(strings.TrimSpace(record.AuthModel), strings.TrimSpace(observation.AuthModel)) {
+			reasons = append(reasons, "auth_model")
+		}
 	}
 	if observation.ToolNames != nil && !sameStringSet(record.ToolNames, observation.ToolNames) {
 		reasons = append(reasons, "tool_names")
+	}
+	if observation.ReliabilityBasisPoints != nil && record.MinimumReliabilityBasisPoints > 0 && *observation.ReliabilityBasisPoints < record.MinimumReliabilityBasisPoints {
+		reasons = append(reasons, "reliability_threshold")
 	}
 
 	if len(reasons) == 0 {
