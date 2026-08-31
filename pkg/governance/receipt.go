@@ -157,6 +157,9 @@ func ValidateReceiptBinding(record RegistryRecord, receipt CertificationReceipt,
 }
 
 func validateScopeSet(label string, scopes []string) error {
+	if scopes == nil {
+		return fmt.Errorf("%s array is required", label)
+	}
 	seen := make(map[string]struct{}, len(scopes))
 	for _, scope := range scopes {
 		canonical := strings.TrimSpace(scope)
