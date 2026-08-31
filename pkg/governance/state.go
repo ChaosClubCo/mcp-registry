@@ -23,6 +23,9 @@ THE SOFTWARE.
 package governance
 
 func CanTransition(from, to CertificationState) bool {
+	if !validCertificationState(from) || !validCertificationState(to) {
+		return false
+	}
 	if from == to {
 		return true
 	}
