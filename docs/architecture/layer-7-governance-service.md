@@ -28,8 +28,9 @@ The v1 durable backend:
 - creates parent directory with `0700` permissions.
 - writes temporary files with `0600` permissions.
 - `fsync` temp file → atomic rename → `fsync` parent directory.
-- rejects a symlink at the configured snapshot path.
-- serializes in-process access across store instances that point at the same canonical path.
+- rejects symlinks in the configured snapshot path.
+- serializes in-process access across store instances that point at the same canonical absolute path.
+- returns path-canonicalization failures rather than collapsing them into a shared lock identity.
 - uses snapshot revision CAS to reject stale writers.
 
 This backend is designed for one OS process boundary. Cross-host/multi-process production deployments should use a transactional implementation of `GovernanceStore`.
@@ -38,19 +39,19 @@ This backend is designed for one OS process boundary. Cross-host/multi-process p
 
 Each registry record has its own monotonically increasing revision in addition to the global snapshot revision. Lifecycle changes require the caller's expected record revision so stale transition requests cannot overwrite newer state.
 
-A stable connector identity key is derived from connector ID, connector version, and schema hash. Certification remains bound to that exact identity.
+A stable connector identity key is the SHA-256 digest of the canonical connector ID, connector version, and schema-hash tuple. This avoids delimiter ambiguity while keeping certification bound to the exact identity.
 
 ### Receipt archive
 
-Every certification receipt used by registration or promotion is stored immutably by SHA-256 content reference. Updating a connector never destroys earlier certification evidence.
+Every supplied certification receipt is validated and bound to the exact record before archival. Receipts used by registration or promotion are stored immutably with their SHA-256 content reference. Updating a connector never destroys earlier certification evidence.
 
 ### Signed authorization grants
 
 Layer 7 uses Ed25519 signatures from the Go standard library.
 
-A grant binds:
+A signed grant binds:
 
-- grant ID
+- a CSPRNG-generated grant ID
 - signing key ID
 - principal
 - exact resource domain
@@ -58,9 +59,8 @@ A grant binds:
 - normalized granted scopes
 - issued-at timestamp
 - expiration timestamp
-- random nonce
 
-Grant payloads are canonicalized before signing. Grant signatures are persisted, but private signing keys are never written to the governance snapshot.
+The grant ID provides uniqueness; there is no separate nonce field. Grant payloads are canonicalized before signing. Grant signatures are persisted, but private signing keys are never written to the governance snapshot. Entropy failures return an error and fail the operation closed.
 
 A grant is usable only when:
 
@@ -70,22 +70,22 @@ A grant is usable only when:
 4. it has not been revoked,
 5. its exact principal/resource/scope data matches the persisted grant.
 
-The router never trusts caller-supplied `AuthorizationContext`; the service derives authorization from the verified persisted grant and overwrites the request authorization before calling Layer 6 `Select`.
+The router never trusts caller-supplied `AuthorizationContext`; the service derives authorization from the verified persisted grant and overwrites request authorization before calling Layer 6 `Select`.
 
 ### Evidence ledger
 
 State-changing governance operations append a `GovernanceEvent` and a corresponding `EvidenceEntry`.
 
-Each evidence entry contains:
+`GovernanceEvent` carries the event ID, timestamp, operation metadata, and a hash of the resulting durable governance state. `EvidenceEntry` carries:
 
 - sequence number
-- event ID
 - event SHA-256
 - previous ledger-entry hash
 - current ledger-entry hash
-- timestamp
 
-`VerifyEvidenceLedger` validates sequence continuity, event hashes, previous-hash links, and entry hashes. Mutation of historical evidence is therefore detectable.
+`VerifyEvidenceLedger` validates sequence continuity, event hashes, previous-hash links, entry hashes, and the final event's state hash against the current persisted registry/receipt/grant state. Historical evidence edits and direct current-state edits are therefore detectable.
+
+This is tamper-evident integrity, not a keyed authenticity guarantee against an attacker who can rewrite the entire snapshot and recompute every unkeyed hash. Stronger external anchoring belongs to a later backend/evidence layer.
 
 ### Atomic lifecycle transitions
 
@@ -104,7 +104,7 @@ No intermediate lifecycle state is durable.
 
 ### Drift handling
 
-`ObserveDrift` runs Layer 6 `DetectDrift` against the latest record. Material drift appends a drift event and, when the detected next state differs, atomically demotes the record in the same snapshot commit.
+`ObserveDrift` runs Layer 6 `DetectDrift` against the latest record. Material drift captures one operation timestamp, appends a drift event, and atomically persists the detected next state and updated record revision in the same snapshot commit.
 
 ### Router-facing API
 
@@ -114,7 +114,7 @@ No intermediate lifecycle state is durable.
 2. derives `AuthorizationContext`,
 3. loads the latest records,
 4. calls Layer 6 deterministic `Select`,
-5. returns the selected record identity and snapshot revision.
+5. returns the selected stored record, grant ID, and verified snapshot revision.
 
 Revoked, expired, tampered, or unpersisted grants fail before connector selection.
 
@@ -127,9 +127,11 @@ Layer 7 fails closed on:
 - invalid lifecycle transition
 - invalid or mismatched certification evidence
 - corrupted snapshot JSON
-- evidence-ledger corruption
+- evidence-ledger or current-state integrity failure
 - invalid/tampered/expired/revoked/unissued authorization grants
-- symlinked file-store target
+- symlinked file-store paths
+- path canonicalization failure
+- entropy failure while generating persistent IDs
 - atomic persistence failure
 
 ## Non-goals for v1
