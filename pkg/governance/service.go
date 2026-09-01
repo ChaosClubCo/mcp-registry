@@ -50,7 +50,12 @@ func NewGovernanceService(store GovernanceStore, signer GrantSigner, clock func(
 }
 
 func recordKey(record RegistryRecord) string {
-	return record.ConnectorID + "@" + record.Version + "#" + record.SchemaHash
+	raw, _ := json.Marshal(struct {
+		ConnectorID string `json:"connector_id"`
+		Version     string `json:"version"`
+		SchemaHash  string `json:"schema_hash"`
+	}{record.ConnectorID, record.Version, record.SchemaHash})
+	return "mcp:" + sha256Hex(raw)
 }
 
 func (s *GovernanceService) load(ctx context.Context) (GovernanceSnapshot, error) {
