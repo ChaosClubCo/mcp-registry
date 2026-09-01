@@ -75,7 +75,7 @@ func (s *GovernanceService) Snapshot(ctx context.Context) (GovernanceSnapshot, e
 
 func (s *GovernanceService) Register(ctx context.Context, record RegistryRecord) (StoredRegistryRecord, error) {
 	now := s.clock()
-	if isCertifiedState(record.CertificationState) {
+	if isCertifiedState(record.CertificationState) || record.CertificationReceipt.SchemaVersion != "" {
 		if err := ValidateReceiptBinding(record, record.CertificationReceipt, now); err != nil {
 			return StoredRegistryRecord{}, err
 		}
