@@ -155,10 +155,13 @@ func NewFileGovernanceStore(path string) *FileGovernanceStore {
 
 var fileStoreLocks sync.Map
 
-func storeLock(path string) *sync.Mutex {
-	absolute, _ := filepath.Abs(path)
+func storeLock(path string) (*sync.Mutex, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("canonicalize governance store path: %w", err)
+	}
 	value, _ := fileStoreLocks.LoadOrStore(absolute, &sync.Mutex{})
-	return value.(*sync.Mutex)
+	return value.(*sync.Mutex), nil
 }
 
 func (s *FileGovernanceStore) Load(ctx context.Context) (GovernanceSnapshot, error) {
@@ -186,7 +189,10 @@ func (s *FileGovernanceStore) Commit(ctx context.Context, expected uint64, next 
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	lock := storeLock(s.path)
+	lock, err := storeLock(s.path)
+	if err != nil {
+		return err
+	}
 	lock.Lock()
 	defer lock.Unlock()
 
