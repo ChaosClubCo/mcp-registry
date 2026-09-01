@@ -28,6 +28,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"time"
 )
 
@@ -59,12 +60,16 @@ type EvidenceEntry struct {
 	EntryHash    string `json:"entry_hash"`
 }
 
-func newID() string {
+func newIDFromReader(reader io.Reader) (string, error) {
 	b := make([]byte, 16)
-	if _, err := rand.Read(b); err != nil {
-		panic(err)
+	if _, err := io.ReadFull(reader, b); err != nil {
+		return "", fmt.Errorf("generate governance id: %w", err)
 	}
-	return hex.EncodeToString(b)
+	return hex.EncodeToString(b), nil
+}
+
+func newID() (string, error) {
+	return newIDFromReader(rand.Reader)
 }
 
 func sha256Hex(b []byte) string {
@@ -85,7 +90,11 @@ func archiveReceipt(key string, r CertificationReceipt, at time.Time) (ArchivedR
 	if err != nil {
 		return ArchivedReceipt{}, err
 	}
-	return ArchivedReceipt{ID: newID(), RecordKey: key, ReceiptHash: h, Receipt: r, ArchivedAt: at}, nil
+	id, err := newID()
+	if err != nil {
+		return ArchivedReceipt{}, err
+	}
+	return ArchivedReceipt{ID: id, RecordKey: key, ReceiptHash: h, Receipt: r, ArchivedAt: at}, nil
 }
 
 func governanceStateHash(s GovernanceSnapshot) (string, error) {
