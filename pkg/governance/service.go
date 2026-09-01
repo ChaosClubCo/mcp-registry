@@ -38,8 +38,9 @@ type GovernanceService struct {
 }
 
 type RouteDecision struct {
-	Record  StoredRegistryRecord
-	GrantID string
+	Record           StoredRegistryRecord
+	GrantID          string
+	SnapshotRevision uint64
 }
 
 func NewGovernanceService(store GovernanceStore, signer GrantSigner, clock func() time.Time) (*GovernanceService, error) {
@@ -106,9 +107,12 @@ func (s *GovernanceService) Register(ctx context.Context, record RegistryRecord)
 		snapshot.Receipts = append(snapshot.Receipts, archived)
 		receiptHashValue = archived.ReceiptHash
 	}
-
+	eventID, err := newID()
+	if err != nil {
+		return StoredRegistryRecord{}, err
+	}
 	event := GovernanceEvent{
-		ID:          newID(),
+		ID:          eventID,
 		Type:        EventRecordRegistered,
 		RecordKey:   key,
 		At:          now,
@@ -179,8 +183,12 @@ func (s *GovernanceService) Transition(ctx context.Context, key string, expected
 	stored.Record = nextRecord
 	stored.Revision++
 	snapshot.Records[key] = stored
+	eventID, err := newID()
+	if err != nil {
+		return StoredRegistryRecord{}, err
+	}
 	if err := appendGovernanceEvent(&snapshot, GovernanceEvent{
-		ID:          newID(),
+		ID:          eventID,
 		Type:        EventStateTransition,
 		RecordKey:   key,
 		At:          now,
@@ -214,15 +222,20 @@ func (s *GovernanceService) ObserveDrift(ctx context.Context, key string, expect
 		return result, stored, nil
 	}
 
+	now := s.clock()
 	from := stored.Record.CertificationState
 	stored.Record.CertificationState = result.NextState
 	stored.Revision++
 	snapshot.Records[key] = stored
+	eventID, err := newID()
+	if err != nil {
+		return DriftResult{}, StoredRegistryRecord{}, err
+	}
 	if err := appendGovernanceEvent(&snapshot, GovernanceEvent{
-		ID:        newID(),
+		ID:        eventID,
 		Type:      EventDriftDetected,
 		RecordKey: key,
-		At:        s.clock(),
+		At:        now,
 		FromState: from,
 		ToState:   result.NextState,
 		Reasons:   append([]string(nil), result.Reasons...),
@@ -245,9 +258,12 @@ func (s *GovernanceService) IssueGrant(ctx context.Context, spec GrantSpec) (Sig
 	if domain == "" || domain != spec.ResourceDomain || resourceRef == "" || resourceRef != spec.ResourceRef || !spec.ExpiresAt.After(now) {
 		return SignedAuthorizationGrant{}, ErrUnauthorizedGrant
 	}
-
+	grantID, err := newID()
+	if err != nil {
+		return SignedAuthorizationGrant{}, err
+	}
 	grant := AuthorizationGrant{
-		GrantID:        newID(),
+		GrantID:        grantID,
 		Principal:      spec.Principal,
 		ResourceDomain: domain,
 		ResourceRef:    resourceRef,
@@ -264,8 +280,12 @@ func (s *GovernanceService) IssueGrant(ctx context.Context, spec GrantSpec) (Sig
 	if err != nil {
 		return SignedAuthorizationGrant{}, err
 	}
+	eventID, err := newID()
+	if err != nil {
+		return SignedAuthorizationGrant{}, err
+	}
 	snapshot.Grants[grant.GrantID] = StoredAuthorizationGrant{Signed: signed}
-	if err := appendGovernanceEvent(&snapshot, GovernanceEvent{ID: newID(), Type: EventGrantIssued, GrantID: grant.GrantID, At: now}); err != nil {
+	if err := appendGovernanceEvent(&snapshot, GovernanceEvent{ID: eventID, Type: EventGrantIssued, GrantID: grant.GrantID, At: now}); err != nil {
 		return SignedAuthorizationGrant{}, err
 	}
 	if err := s.store.Commit(ctx, snapshot.Revision, snapshot); err != nil {
@@ -287,9 +307,13 @@ func (s *GovernanceService) RevokeGrant(ctx context.Context, grantID string) err
 		return nil
 	}
 	now := s.clock()
+	eventID, err := newID()
+	if err != nil {
+		return err
+	}
 	stored.RevokedAt = &now
 	snapshot.Grants[grantID] = stored
-	if err := appendGovernanceEvent(&snapshot, GovernanceEvent{ID: newID(), Type: EventGrantRevoked, GrantID: grantID, At: now}); err != nil {
+	if err := appendGovernanceEvent(&snapshot, GovernanceEvent{ID: eventID, Type: EventGrantRevoked, GrantID: grantID, At: now}); err != nil {
 		return err
 	}
 	return s.store.Commit(ctx, snapshot.Revision, snapshot)
@@ -340,5 +364,5 @@ func (s *GovernanceService) SelectWithGrant(ctx context.Context, req Request, si
 	if !ok {
 		return RouteDecision{}, errors.New("selected record missing from snapshot")
 	}
-	return RouteDecision{Record: stored, GrantID: signed.Grant.GrantID}, nil
+	return RouteDecision{Record: stored, GrantID: signed.Grant.GrantID, SnapshotRevision: snapshot.Revision}, nil
 }
