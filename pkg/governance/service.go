@@ -333,8 +333,9 @@ func (s *GovernanceService) SelectWithGrant(ctx context.Context, req Request, si
 	if err != nil {
 		return RouteDecision{}, err
 	}
+	now := s.clock()
 	storedGrant, ok := snapshot.Grants[signed.Grant.GrantID]
-	if !ok || storedGrant.RevokedAt != nil || !signedGrantEqual(storedGrant.Signed, signed) || !s.clock().Before(signed.Grant.ExpiresAt) {
+	if !ok || storedGrant.RevokedAt != nil || !signedGrantEqual(storedGrant.Signed, signed) || !now.Before(signed.Grant.ExpiresAt) {
 		return RouteDecision{}, ErrUnauthorizedGrant
 	}
 	if req.ResourceDomain != signed.Grant.ResourceDomain || req.ResourceRef != signed.Grant.ResourceRef {
@@ -355,7 +356,7 @@ func (s *GovernanceService) SelectWithGrant(ctx context.Context, req Request, si
 	for _, stored := range snapshot.Records {
 		records = append(records, stored.Record)
 	}
-	selected, err := Select(records, req, s.clock())
+	selected, err := Select(records, req, now)
 	if err != nil {
 		return RouteDecision{}, err
 	}
