@@ -100,10 +100,11 @@ func archiveReceipt(key string, r CertificationReceipt, at time.Time) (ArchivedR
 func governanceStateHash(s GovernanceSnapshot) (string, error) {
 	payload, err := json.Marshal(struct {
 		SchemaVersion string                              `json:"schema_version"`
+		Revision      uint64                              `json:"revision"`
 		Records       map[string]StoredRegistryRecord     `json:"records"`
 		Receipts      []ArchivedReceipt                   `json:"receipts"`
 		Grants        map[string]StoredAuthorizationGrant `json:"grants"`
-	}{s.SchemaVersion, s.Records, s.Receipts, s.Grants})
+	}{s.SchemaVersion, s.Revision, s.Records, s.Receipts, s.Grants})
 	if err != nil {
 		return "", err
 	}
@@ -111,7 +112,11 @@ func governanceStateHash(s GovernanceSnapshot) (string, error) {
 }
 
 func appendGovernanceEvent(s *GovernanceSnapshot, event GovernanceEvent) error {
-	stateHash, err := governanceStateHash(*s)
+	// GovernanceStore.Commit advances the global revision exactly once. Bind the
+	// event to that post-commit revision so direct revision edits are detectable.
+	committed := *s
+	committed.Revision = s.Revision + 1
+	stateHash, err := governanceStateHash(committed)
 	if err != nil {
 		return err
 	}
