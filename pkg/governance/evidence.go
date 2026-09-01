@@ -49,6 +49,7 @@ type GovernanceEvent struct {
 	ToState     CertificationState `json:"to_state,omitempty"`
 	Reasons     []string           `json:"reasons,omitempty"`
 	ReceiptHash string             `json:"receipt_hash,omitempty"`
+	StateHash   string             `json:"state_hash"`
 }
 
 type EvidenceEntry struct {
@@ -87,7 +88,26 @@ func archiveReceipt(key string, r CertificationReceipt, at time.Time) (ArchivedR
 	return ArchivedReceipt{ID: newID(), RecordKey: key, ReceiptHash: h, Receipt: r, ArchivedAt: at}, nil
 }
 
+func governanceStateHash(s GovernanceSnapshot) (string, error) {
+	payload, err := json.Marshal(struct {
+		SchemaVersion string                              `json:"schema_version"`
+		Records       map[string]StoredRegistryRecord     `json:"records"`
+		Receipts      []ArchivedReceipt                   `json:"receipts"`
+		Grants        map[string]StoredAuthorizationGrant `json:"grants"`
+	}{s.SchemaVersion, s.Records, s.Receipts, s.Grants})
+	if err != nil {
+		return "", err
+	}
+	return sha256Hex(payload), nil
+}
+
 func appendGovernanceEvent(s *GovernanceSnapshot, event GovernanceEvent) error {
+	stateHash, err := governanceStateHash(*s)
+	if err != nil {
+		return err
+	}
+	event.StateHash = stateHash
+
 	raw, err := json.Marshal(event)
 	if err != nil {
 		return err
@@ -151,6 +171,15 @@ func VerifyEvidenceLedger(s GovernanceSnapshot) error {
 			return fmt.Errorf("ledger entry hash mismatch at %d", i)
 		}
 		previousHash = entry.EntryHash
+	}
+	if len(s.Events) > 0 {
+		stateHash, err := governanceStateHash(s)
+		if err != nil {
+			return err
+		}
+		if s.Events[len(s.Events)-1].StateHash != stateHash {
+			return fmt.Errorf("governance state hash mismatch")
+		}
 	}
 	return nil
 }
